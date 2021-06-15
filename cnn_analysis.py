@@ -19,6 +19,9 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.applications import xception
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import tensorflow.keras.backend as kb
+from sklearn import preprocessing
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 print(tf.__version__)
 
@@ -109,3 +112,90 @@ batch_size = 32
 steps_per_epoch = X_train.shape[0]//batch_size
 traingen = datagen.flow(X_train, y_train, batch_size)
 r = model.fit_generator(traingen, steps_per_epoch=steps_per_epoch, epochs=50, validation_data=(X_test, y_test), callbacks=[cp_callback]) #Training 2
+
+layer = model.layers[1]
+weights = np.array(layer.get_weights()[0])
+print(len(model.layers))
+
+# print(weights.shape)
+for i in range(len(model.layers)):
+  layer = model.layers[i]
+  if len(layer.get_weights())>0:
+    print(np.array(layer.get_weights()[0]).shape)
+
+
+fig, axs = plt.subplots(4, 8)
+# weights.shape[3]
+plt.axis('off')
+rows = 4
+cols = 8
+row = 0
+col = 0
+for i in range(weights.shape[3]):
+  v = weights[:,:,0,i]
+  v_min = v.min(axis=(0, 1), keepdims=True)
+  v_max = v.max(axis=(0, 1), keepdims=True)
+  v = (v - v_min)/(v_max - v_min)
+  axs[row, col].imshow(v)
+  row = row + (col+1)//cols
+  col = (col+1)%cols
+plt.show()
+
+# plt.imshow(X_train[0])
+pred = model.predict(x=X_train[0:1]).argmax()
+print(pred, y_train[0])
+
+def occlusion(model, image, label, occ_size = 50, occ_stride = 50, occ_pixel = 0.5):
+  
+    #get the width and height of the image
+    width, height = image.shape[0], image.shape[1]
+  
+    #setting the output image width and height
+    output_height = int(np.ceil((height-occ_size)/occ_stride))
+    output_width = int(np.ceil((width-occ_size)/occ_stride))
+  
+    #create a white image of sizes we defined
+    heatmap = np.zeros((output_height, output_width))
+    
+    #iterate all the pixels in each column
+    for h in range(0, height):
+        for w in range(0, width):
+            
+            h_start = h*occ_stride
+            w_start = w*occ_stride
+            h_end = min(height, h_start + occ_size)
+            w_end = min(width, w_start + occ_size)
+            
+            if (w_end) >= width or (h_end) >= height:
+                continue
+            
+            # input_image = image.clone().detach()
+            input_image = np.copy(image)
+            
+            #replacing all the pixel information in the image with occ_pixel(grey) in the specified location
+            input_image[w_start:w_end, h_start:h_end] = occ_pixel
+            
+            #run inference on modified image
+            # output = model(input_image)
+            # output = nn.functional.softmax(output, dim=1)
+            # prob = output.tolist()[0][label]
+            prob = model.predict(x=np.array([input_image]))[0,label]
+            
+            #setting the heatmap location to probability value
+            # print(prob)
+            heatmap[h, w] = prob 
+
+    return heatmap
+
+def checkHeatmap(image, label, occ_size, occ_stride):
+  heatmap = occlusion(model, image, label, occ_size, occ_stride)
+  print(heatmap.shape)
+  imgplot = sns.heatmap(heatmap, xticklabels=False, yticklabels=False)
+  figure = imgplot.get_figure()
+
+print(model.predict(x=np.array([X_train[4]])).argmax())
+print(y_train[4])
+
+checkHeatmap(X_train[1], y_train[1], 9, 1)
+
+plt.imshow(X_train[1])
