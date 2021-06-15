@@ -22,6 +22,9 @@ import tensorflow.keras.backend as kb
 
 print(tf.__version__)
 
+cnn_saver = '<Add Path to store the CNN weights>'
+cnn_loader = '<Add Path from where to retrieve the CNN weights>'
+
 """# Get the Data"""
 
 cifar10 = tf.keras.datasets.cifar10
@@ -95,3 +98,14 @@ model = createNetwork()
 model.compile(optimizer='adam',loss=custom_loss,metrics=['accuracy'])
 
 print(model.summary())
+
+model.load_weights(cnn_loader)
+
+r = model.fit(X_train, y_train, validation_data=(X_test, y_test), epochs=50) #Training 1
+
+cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=cnn_saver, save_weights_only=True, verbose=1)
+datagen = ImageDataGenerator(width_shift_range=0.2,  height_shift_range=0.2, horizontal_flip=True, fill_mode='constant')
+batch_size = 32
+steps_per_epoch = X_train.shape[0]//batch_size
+traingen = datagen.flow(X_train, y_train, batch_size)
+r = model.fit_generator(traingen, steps_per_epoch=steps_per_epoch, epochs=50, validation_data=(X_test, y_test), callbacks=[cp_callback]) #Training 2
