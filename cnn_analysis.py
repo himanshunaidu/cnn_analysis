@@ -33,3 +33,65 @@ x_shape = X_train[0].shape
 print(x_shape)
 
 y_train, y_test = y_train.flatten(), y_test.flatten()
+
+"""# Create the Network"""
+
+#For padding
+def plus_one_pad(tensor, mode):
+    return tf.pad(tensor, [[0, 0], [1, 1], [1, 1], [0, 0]], mode)
+
+#For initialization
+def initializer(length):
+    return tf.keras.initializers.RandomNormal(mean=0.0, stddev=1.0) #1/math.sqrt(length/2))
+
+alpha = 0.15
+
+#Network
+def createNetwork():
+    i = Input(shape=(x_shape[0], x_shape[1], x_shape[2]))
+    x = Conv2D(32, (9, 9), padding='same', activation=LeakyReLU(alpha=alpha), kernel_initializer=initializer(3*3))(i)
+    x = BatchNormalization()(x)
+    x = Conv2D(32, (3, 3), padding='same', activation=LeakyReLU(alpha=alpha), kernel_initializer=initializer(3*3))(x)
+    x = BatchNormalization()(x)
+    x = MaxPool2D((2, 2))(x)
+
+    # print(x)
+    x = Conv2D(64, (3, 3), padding='same', activation=LeakyReLU(alpha=alpha), kernel_initializer=initializer(3*3))(x)
+    x = BatchNormalization()(x)
+    x = Conv2D(64, (3, 3), padding='same', activation=LeakyReLU(alpha=alpha), kernel_initializer=initializer(3*3))(x)
+    x = BatchNormalization()(x)
+    x = MaxPool2D((2, 2))(x)
+
+    # print(x)
+    x = Conv2D(128, (3, 3), padding='same', activation=LeakyReLU(alpha=alpha), kernel_initializer=initializer(3*3))(x)
+    x = BatchNormalization()(x)
+    x = Conv2D(128, (3, 3), padding='same', activation=LeakyReLU(alpha=alpha), kernel_initializer=initializer(3*3))(x)
+    x = BatchNormalization()(x)
+    x = MaxPool2D((2, 2))(x)
+
+    # print(x)
+    x = Flatten()(x)
+    # x = Dense(2048, activation=LeakyReLU(alpha=0.3))(x) #2304 = 12x12x64/4
+    x = Dropout(0.3)(x)
+    x = Dense(1024, activation=LeakyReLU(alpha=0.3))(x)
+    x = Dropout(0.3)(x)
+    x = Dense(10, activation='softmax')(x)
+
+    # print(x)
+    model = Model(i, x)
+    return model
+
+def custom_loss(y_true, y_pred):
+    scce = tf.keras.losses.SparseCategoricalCrossentropy()
+    loss = scce(y_true, y_pred)
+
+    for index in range(len(y_true)):
+        if y_true[index][0]==3:
+            loss_1 = abs(1-y_pred[index][3])
+            loss = loss + loss_1
+    return loss
+
+model = createNetwork()
+model.compile(optimizer='adam',loss=custom_loss,metrics=['accuracy'])
+
+print(model.summary())
